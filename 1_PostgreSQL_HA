@@ -1,0 +1,47 @@
+#Skrypt tworzący wirtualną maszynę Home Assistant OS
+https://community-scripts.github.io/ProxmoxVE/scripts?id=haos-vm
+
+
+#Skrypt tworzący kontener LXC dla PostgreSQL
+https://community-scripts.github.io/ProxmoxVE/scripts?id=postgresql&category=Databases
+
+
+
+#Przygotowanie bazy postgresql dla HA po zalogowaniu się do kontenera LXC postgres
+sudo -i -u postgres
+psql
+
+CREATE USER ha WITH PASSWORD 'TwojeSuperSilneHaslo';
+
+CREATE DATABASE ha_db WITH OWNER ha ENCODING 'utf8' TEMPLATE template0;
+
+GRANT ALL PRIVILEGES ON DATABASE ha_db TO ha;
+
+\q
+exit
+
+
+#Włączenie możliwości połączeń zewnętrznych w postgres
+nano /etc/postgresql/18/main/postgresql.conf
+Sprawdzić czy parametr listen_addresses = '*'
+
+#ustawienie pg_hba.conf, przykład dla puli IP 192.168.8.*, można ewentualnie wpisać konkretny adres IP, czyli np 192.168.8.249/32. Zamiast metody scram-sha-256 można użyć md5
+
+nano /etc/postgresql/18/main/pg_hba.conf
+# TYPE  DATABASE        USER            ADDRESS                 METHOD
+host    ha_db           ha              192.168.8.0/24          scram-sha-256
+
+#restart usługi postgres celem aktualizacji konfiguracji
+sudo systemctl restart postgresql
+
+
+
+#Dopisanie wpisu w secrets.yaml home assistant
+psql_string: "postgresql://ha:TwojeSuperSilneHaslo@192.168.8.56/ha_db"	#zmień 192.168.8.56 na adres IP Twojego kontenera PSQL
+
+
+#Dopisanie wpisu w configuration.yaml home assistant
+recorder:
+  purge_keep_days: 365
+  db_url: !secret psql_string
+  db_retry_wait: 15 # Wait 15 seconds before retrying
