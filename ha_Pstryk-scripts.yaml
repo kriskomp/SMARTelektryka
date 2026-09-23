@@ -1,0 +1,45 @@
+pstryk_oblicz_top_n_godzin_sprzedazy:
+  alias: Pstryk – Oblicz TOP N godzin sprzedaży
+  sequence:
+  - variables:
+      top_n: '{{ [[states(''input_number.pstryk_sell_top_n'') | int(3), 1] | max,
+        6] | min | int }}'
+  - variables:
+      slots_csv: "{% set today_date = now().date() %} {% set tomorrow_date = (now()
+        + timedelta(days=1)).date() %} {% set current_hour = now().replace(minute=0,
+        second=0, microsecond=0) %} {% set today_prices = state_attr('sensor.pstryk_json_sell','prices_today')
+        or [] %} {% set tomorrow_prices = state_attr('sensor.pstryk_json_sell','prices_tomorrow')
+        or [] %} {% set ns = namespace(items=[]) %} {% for item in today_prices %}\n
+        \ {% if item.time.date() == today_date and item.time >= current_hour %}\n
+        \   {% set ns.items = ns.items + [item] %}\n  {% endif %}\n{% endfor %} {%
+        for item in tomorrow_prices %}\n  {% if item.time.date() == tomorrow_date
+        %}\n    {% set ns.items = ns.items + [item] %}\n  {% endif %}\n{% endfor %}
+        {% set sorted_items = ns.items | sort(attribute='price', reverse=true) | list
+        %} {% set ns2 = namespace(rows=[]) %} {% for it in sorted_items[:6] %}\n  {%
+        set ns2.rows = ns2.rows + [ (as_timestamp(it.time) | string) ~ ':' ~ (it.price
+        | string) ] %}\n{% endfor %} {{ (ns2.rows | join(';')) | trim }}\n"
+  - repeat:
+      count: 6
+      sequence:
+      - variables:
+          parts: '{{ slots_csv.split('';'') }}'
+          slot_raw: '{{ parts[repeat.index - 1] if repeat.index <= top_n and repeat.index
+            <= (parts | count) else '''' }}'
+      - action: input_datetime.set_datetime
+        target:
+          entity_id: input_datetime.pstryk_sell_hour_{{ repeat.index }}
+        data:
+          timestamp: '{{ slot_raw.split('':'')[0] | int(0) if slot_raw != '''' else
+            0 }}'
+      - action: input_number.set_value
+        target:
+          entity_id: input_number.pstryk_sell_price_{{ repeat.index }}
+        data:
+          value: '{{ slot_raw.split('':'')[1] | float(0) if slot_raw != '''' else
+            0 }}'
+  - action: input_datetime.set_datetime
+    target:
+      entity_id: input_datetime.pstryk_sell_top_n_updated
+    data:
+      timestamp: '{{ as_timestamp(now()) }}'
+  mode: single

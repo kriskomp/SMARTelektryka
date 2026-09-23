@@ -1,0 +1,16 @@
+- id: '1790146575544'
+  alias: Pstryk – Aktualizacja TOP N godzin sprzedaży
+  triggers:
+  - trigger: state
+    entity_id: sensor.pstryk_json_sell
+  - trigger: homeassistant
+    event: start
+  conditions:
+  - condition: template
+    value_template: '{% set updated = as_datetime(states(''input_datetime.pstryk_sell_top_n_updated''),
+      default=none) %} {{ updated is none or updated.date() != now().date() }}
+
+      '
+  actions:
+  - action: script.pstryk_oblicz_top_n_godzin_sprzedazy
+  mode: single
