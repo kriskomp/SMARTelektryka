@@ -1,84 +1,111 @@
 alias: Autokonsumpcja Wallbox
-description: Reaguje co minutę, odporna na błędy Local Tuya i 0W.
+description: >-
+  Reaguje co minutę, odporna na błędy Local Tuya i 0W. Wykorzystuje czyste fazy
+  Zamela do natychmiastowej reakcji i pre-konsumpcji. O 15:00 wymusza koniec
+  ładowania.
 triggers:
   - trigger: time_pattern
     minutes: /1
   - trigger: state
     entity_id: sensor.energia_netto_godzina
   - trigger: numeric_state
-    entity_id: sensor.moc_chwilowa_zamel
-    above: 1000
-    for: "00:00:10"
+    entity_id: sensor.wallbox_voltage_b
+    above: 252
+  - trigger: time
+    at: '15:00:00'
+    id: stop_15
 conditions:
-  - condition: state
-    entity_id: sun.sun
-    state: above_horizon
-  - condition: template
-    value_template: |
-      {{ trigger.platform == 'time_pattern' or 
-         (now() - this.attributes.last_triggered | default(today_at(), true)).total_seconds() > 45 }}
-  - condition: template
-    value_template: |-
-      {{ states('sensor.wallbox_status') in [
-        'plugged_in','charging','waiting','waiting_for_authorization','charged',
-        'Oczekiwanie na autoryzację'
-      ] }}
+  - condition: or
+    conditions:
+      - condition: trigger
+        id: stop_15
+      - condition: and
+        conditions:
+          - condition: time
+            before: '15:00:00'
+          - condition: numeric_state
+            entity_id: sensor.solaredge_current_power
+            above: 350
+            enabled: true
+          - condition: template
+            value_template: >
+              {{ (now() - this.attributes.last_triggered | default(today_at(),
+              true)).total_seconds() >= 59 }}
+          - condition: template
+            value_template: |-
+              {{ is_state('sensor.wallbox_status', 'charging') or 
+                 (states('sensor.wallbox_status') in ['plugged_in', 'waiting', 'waiting_for_authorization', 'charged', 'Oczekiwanie na autoryzację']
+                  and pozwala_na_start) }}
 actions:
-  - action: number.set_value
-    target:
-      entity_id: "{{ wallbox_number }}"
-    data:
-      value: "{{ target_current }}"
   - if:
-      - condition: template
-        value_template: >-
-          {{ not is_state('sensor.wallbox_status', 'charging') and energia_h <
-          -0.05 }}
+      - condition: trigger
+        id: stop_15
     then:
       - action: button.press
         target:
-          entity_id: "{{ button_start }}"
+          entity_id: button.wallbox_stop_charging
+      - stop: Osiągnięto godzinę 15:00, zakończono ładowanie.
+  - action: number.set_value
+    target:
+      entity_id: '{{ wallbox_number }}'
+    data:
+      value: '{{ target_current }}'
+  - if:
+      - condition: template
+        value_template: >-
+          {{ not is_state('sensor.wallbox_status', 'charging') and
+          pozwala_na_start }}
+    then:
+      - action: button.press
+        target:
+          entity_id: '{{ button_start }}'
   - action: persistent_notification.create
     data:
-      title: "Debug EV: {{ target_current }}A"
+      title: 'Debug EV: {{ target_current }}A'
       message: >-
-        Moc sieci: {{ net_power_w }}W, Ładowarka: {{ ev_power_w }}W. Zapas: {{
-        energia_h }}kWh. Czas: {{ poz_min }}min.
+        Główny licznik: {{ net_power_w }}W, Ładowarka: {{ ev_power_w }}W. Czysty
+        dom: {{ house_net_w }}W. Bilans h: {{ energia_h }}kWh. Min do końca h:
+        {{ min_to_hour_end }}, Min do odjazdu: {{ min_to_dep }}.
       notification_id: debug_wallbox
 mode: restart
 variables:
   wallbox_number: number.wallbox_charge_current
   button_start: button.wallbox_start_charging
-  voltage: "{{ states('sensor.wallbox_voltage_a') | float(240) }}"
-  current_amps: "{{ states('number.wallbox_charge_current') | float(8) }}"
-  raw_ev_power: "{{ states('sensor.wallbox_power') | float(0) }}"
-  ev_power_w: "{{ raw_ev_power if raw_ev_power > 150 else (current_amps * voltage) }}"
-  net_power_w: "{{ states('sensor.moc_chwilowa_zamel') | float(0) }}"
-  energia_h: "{{ states('sensor.energia_netto_godzina') | float(0) }}"
-  poz_min: "{{ states('sensor.pozostale_minuty') | float(0) }}"
-  prognoza: "{{ states('sensor.prognozowany_uzysk') | float(0) }}"
+  voltage: '{{ states(''sensor.wallbox_voltage_a'') | float(240) }}'
+  voltage_b: '{{ states(''sensor.wallbox_voltage_b'') | float(230) }}'
+  current_amps: '{{ states(''number.wallbox_charge_current'') | float(8) }}'
+  ev_power_w: >-
+    {{ (current_amps * voltage) if is_state('sensor.wallbox_status', 'charging')
+    else 0 }}
+  house_net_w: >-
+    {{ (states('sensor.zamel_mew_01_0_electricity_meter_power_active_phase_1') |
+    float(0)) +
+       (states('sensor.zamel_mew_01_0_electricity_meter_power_active_phase_2') | float(0)) +
+       (states('sensor.zamel_mew_01_0_electricity_meter_power_active_phase_3') | float(0)) }}
+  house_surplus_w: '{{ -house_net_w }}'
+  net_power_w: '{{ states(''sensor.moc_chwilowa_zamel'') | float(0) }}'
+  energia_h: '{{ states(''sensor.energia_netto_godzina'') | float(0) }}'
+  min_to_hour_end: '{{ 60 - now().minute }}'
+  min_to_dep: '{{ states(''sensor.pozostale_minuty'') | float(60) }}'
+  safe_min: '{{ [ [min_to_dep, min_to_hour_end] | min, 2 ] | max }}'
+  total_target_power_w: >-
+    {{ (house_surplus_w * (min_to_hour_end / safe_min)) + ((-energia_h * 60000)
+    / safe_min) }}
+  pozwala_na_start: '{{ total_target_power_w >= (voltage * 8) and energia_h < -0.5 }}'
   target_current: >
-    {% set safe_min = poz_min if poz_min > 2 else 2 %}
+    {% set c = (total_target_power_w / voltage) | round(0) | int %}
 
-    {# ZMIANA 1: Jeśli mamy dług (energia_h > 0), symulujemy spłatę w max 5
-    minut #} {% set burn_min = safe_min if energia_h <= 0 else [safe_min, 5] |
-    min %} {% set burn_power_w = ((-energia_h + prognoza) * 60000) / burn_min %}
-
-    {# Formuła: Obecna moc EV - Bilans sieci + spalanie zapasu #} {% set
-    target_power_w = ev_power_w - net_power_w + burn_power_w %} {% set
-    calc_current = target_power_w / voltage %}
-
-    {% if target_power_w <= 0 and (energia_h + prognoza) >= 0 %}
-      8
+    {# Logika agresywności #} {% if energia_h < -0.05 %}
+       {% set final_c = c %}
+    {% elif energia_h > 0.1 %}
+       {% set final_c = [c, 8] | min %}
     {% else %}
-      {% set c = calc_current | round(0) | int %}
-      
-      {# ZMIANA 2: Twardy bezpiecznik - brak wysokich prądów przy długu #}
-      {% if energia_h > 0 and c > 20 %}
-         {% set c = 20 %}
-      {% endif %}
-      
-      {% if c < 8 %} 8
-      {% elif c > 28 %} 28
-      {% else %} {{ c }} {% endif %}
+       {% set final_c = c %}
     {% endif %}
+
+    {# Redukcja przy wysokim napięciu #} {% if voltage_b > 252 %}
+      {% set final_c = [final_c, (current_amps - 1) | int] | min %}
+    {% endif %}
+
+    {# Limity sprzętowe #} {% if final_c < 8 %} 8 {% elif final_c > 30 %} 30 {%
+    else %} {{ final_c }} {% endif %}
