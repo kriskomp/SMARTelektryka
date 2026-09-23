@@ -1,0 +1,196 @@
+views:
+  - type: sections
+    title: Pstryk
+    icon: mdi:flash
+    sections:
+      - type: grid
+        cards:
+          - type: heading
+            heading: 🔁 Automatyzacja sprzedaży
+            heading_style: title
+          - type: entities
+            title: Sterowanie
+            entities:
+              - entity: binary_sensor.pstryk_energy_top_n_sprzedaz
+                name: TOP N aktywne teraz
+              - entity: sensor.pstryk_energy_top_n_numer
+                name: Numer aktywnego slotu
+              - entity: script.pstryk_oblicz_top_n_godzin_sprzedazy
+                name: Przelicz ręcznie
+          - type: entities
+            title: Ustawienia
+            entities:
+              - entity: input_number.pstryk_sell_top_n
+                name: Liczba godzin (N)
+              - entity: input_datetime.pstryk_sell_top_n_updated
+                name: Ostatnia aktualizacja
+          - type: heading
+            heading: Godziny TOP N i ceny
+            heading_style: subtitle
+          - type: tile
+            entity: input_datetime.pstryk_sell_hour_1
+            name: Godzina 1
+            color: green
+          - type: tile
+            entity: input_number.pstryk_sell_price_1
+            name: Cena 1
+            color: green
+          - type: tile
+            entity: input_datetime.pstryk_sell_hour_2
+            name: Godzina 2
+            color: green
+          - type: tile
+            entity: input_number.pstryk_sell_price_2
+            name: Cena 2
+            color: green
+          - type: tile
+            entity: input_datetime.pstryk_sell_hour_3
+            name: Godzina 3
+            color: green
+          - type: tile
+            entity: input_number.pstryk_sell_price_3
+            name: Cena 3
+            color: green
+          - type: tile
+            entity: input_datetime.pstryk_sell_hour_4
+            name: Godzina 4
+            color: blue-grey
+          - type: tile
+            entity: input_number.pstryk_sell_price_4
+            name: Cena 4
+            color: blue-grey
+          - type: tile
+            entity: input_datetime.pstryk_sell_hour_5
+            name: Godzina 5
+            color: blue-grey
+          - type: tile
+            entity: input_number.pstryk_sell_price_5
+            name: Cena 5
+            color: blue-grey
+          - type: tile
+            entity: input_datetime.pstryk_sell_hour_6
+            name: Godzina 6
+            color: blue-grey
+          - type: tile
+            entity: input_number.pstryk_sell_price_6
+            name: Cena 6
+            color: blue-grey
+      - type: grid
+        cards:
+          - type: heading
+            heading: 📟 Miernik lokalny (Pstryk)
+            heading_style: title
+          - type: glance
+            title: Moc chwilowa
+            columns: 4
+            entities:
+              - entity: sensor.pstryk_active_power_1
+                name: L1
+              - entity: sensor.pstryk_active_power_2
+                name: L2
+              - entity: sensor.pstryk_active_power_3
+                name: L3
+              - entity: sensor.pstryk_active_power
+                name: Suma
+          - type: glance
+            title: Napięcie
+            columns: 4
+            entities:
+              - entity: sensor.pstryk_voltage_1
+                name: L1
+              - entity: sensor.pstryk_voltage_2
+                name: L2
+              - entity: sensor.pstryk_voltage_3
+                name: L3
+          - type: entities
+            title: Energia (liczniki)
+            entities:
+              - entity: sensor.pstryk_forward_active_energy
+                name: Pobór czynny
+              - entity: sensor.pstryk_reverse_active_energy
+                name: Oddanie czynne
+          - type: custom:pstryk-card
+            buy_entity: sensor.pstryk_current_buy_price
+            sell_entity: sensor.pstryk_current_sell_price
+            card_mode: full
+            show_title: true
+            show_legend: true
+            show_widget: sparkline
+            widget_effect: pulse
+            widget_hours: 24
+            alert_buy_above: 1.15
+            alert_sell_below: 0.25
+            hover_effect: lift
+            click_action: none
+      - type: grid
+        cards:
+          - type: heading
+            heading: 🌐 Dane API (Pstryk Energy)
+            heading_style: title
+          - type: entities
+            title: Bilanse finansowe
+            entities:
+              - entity: sensor.pstryk_daily_financial_balance
+                name: Dzisiaj
+              - entity: sensor.pstryk_monthly_financial_balance
+                name: Miesięcznie
+              - entity: sensor.pstryk_yearly_financial_balance
+                name: Rocznie
+          - type: entities
+            title: Średnie ceny sprzedaży
+            entities:
+              - entity: sensor.pstryk_sell_daily_average
+                name: Dziś
+              - entity: sensor.pstryk_sell_monthly_average
+                name: Miesiąc
+              - entity: sensor.pstryk_sell_yearly_average
+                name: Rok
+          - type: entities
+            title: Średnie ceny zakupu
+            entities:
+              - entity: sensor.pstryk_buy_daily_average
+                name: Dziś
+              - entity: sensor.pstryk_buy_monthly_average
+                name: Miesiąc
+              - entity: sensor.pstryk_buy_yearly_average
+                name: Rok
+          - type: entities
+            title: Aktualizacje integracji
+            entities:
+              - entity: update.ha_pstryk_update
+                name: Integracja ha_Pstryk
+              - entity: update.pstryk_energy_card_update
+                name: Karta Pstryk Energy
+              - entity: update.pstryk_firmware
+                name: Firmware licznika
+      - type: grid
+        cards:
+          - type: heading
+            heading: 🔆 PV i Magazyn Energii
+            heading_style: title
+          - type: entities
+            title: Prognoza PV (Solcast)
+            entities:
+              - entity: sensor.solcast_pv_forecast_prognoza_na_jutro
+                name: Prognoza na jutro
+              - entity: sensor.solcast_pv_forecast_szczytowa_moc_jutro
+                name: Szczytowa moc jutro
+          - type: entities
+            title: Dzisiejsze przepływy energii
+            entities:
+              - entity: sensor.solax_inverter_pv_energy_yield_today
+                name: Produkcja z PV
+              - entity: sensor.solax_inverter_battery_charge_yield_today
+                name: Naładowano do magazynu
+              - entity: sensor.solax_inverter_battery_discharge_yield_today
+                name: Rozładowano z magazynu
+              - entity: sensor.solax_inverter_feed_in_energy_today
+                name: Sprzedano do sieci
+          - type: entities
+            title: Automatyzacje SolaX
+            entities:
+              - entity: automation.solax_wlacz_rano_gdy_prognoza_pv_wystarczajaca
+                name: Włącz rano (prognoza PV)
+              - entity: >-
+                  automation.solax_wylacz_przed_zachodem_gdy_bateria_pokrywa_wiecej_niz_pv
+                name: Wyłącz przed zachodem
